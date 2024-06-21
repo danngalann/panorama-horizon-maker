@@ -6,6 +6,7 @@ class HorizonMarkerApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Horizon Marker")
+        self.root.state('zoomed')  # Start the window maximized
         
         self.canvas = tk.Canvas(root, cursor="cross")
         self.canvas.pack(fill=tk.BOTH, expand=True)
@@ -28,16 +29,30 @@ class HorizonMarkerApp:
         
         self.canvas.bind("<Button-1>", self.add_point)
         self.canvas.bind("<Button-3>", self.set_az0)
+        self.root.bind("<Configure>", self.resize_image)
 
     def open_image(self):
         self.image_path = filedialog.askopenfilename()
         if not self.image_path:
             return
         self.image = Image.open(self.image_path)
-        self.image_tk = ImageTk.PhotoImage(self.image)
-        self.canvas.create_image(0, 0, anchor=tk.NW, image=self.image_tk)
-        self.canvas.config(scrollregion=self.canvas.bbox(tk.ALL))
-        
+        self.display_image()
+
+    def display_image(self):
+        if self.image:
+            width, height = self.image.size
+            ratio = min(self.canvas.winfo_width() / width, self.canvas.winfo_height() / height)
+            new_size = (int(width * ratio), int(height * ratio))
+            # Using the updated resampling method
+            resized_image = self.image.resize(new_size, Image.Resampling.LANCZOS)
+            self.image_tk = ImageTk.PhotoImage(resized_image)
+            self.canvas.create_image(0, 0, anchor=tk.NW, image=self.image_tk)
+            self.canvas.config(scrollregion=self.canvas.bbox(tk.ALL))
+
+
+    def resize_image(self, event):
+        self.display_image()
+
     def add_point(self, event):
         x, y = event.x, event.y
         if self.coordinates:
@@ -48,7 +63,8 @@ class HorizonMarkerApp:
         
     def set_az0(self, event):
         self.az0_x = event.x
-        self.canvas.create_line(self.az0_x, 0, self.az0_x, self.image.height, fill='blue', dash=(4, 2))
+        if self.image:
+            self.canvas.create_line(self.az0_x, 0, self.az0_x, self.image.height, fill='blue', dash=(4, 2))
 
     def calculate_azimuth(self, x):
         width = self.image.width
@@ -69,7 +85,6 @@ class HorizonMarkerApp:
             elevation = 90 - (y / height) * 180
             horizon_coordinates.append((azimuth, elevation))
         
-        # Ensure the first entry is azimuth 0
         horizon_coordinates = sorted(horizon_coordinates, key=lambda coord: coord[0])
         if horizon_coordinates[0][0] != 0:
             first_elevation = horizon_coordinates[0][1]

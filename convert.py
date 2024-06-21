@@ -73,12 +73,15 @@ class HorizonMarkerApp:
         if self.image:
             self.canvas.create_line(self.az0_x, 0, self.az0_x, self.image.height, fill='blue', dash=(4, 2))
 
-    def calculate_azimuth(self, x):
+    def calculate_azimuth(self, x) -> int:
         width = self.image.width
         if x >= self.az0_x:
-            return (x - self.az0_x) / width * 360
+            azimuth = (x - self.az0_x) / width * 360
         else:
-            return 360 - ((self.az0_x - x) / width * 360)
+            azimuth = 360 - ((self.az0_x - x) / width * 360)
+
+        # Round to the nearest integer
+        return round(azimuth)
         
     def save_hrz(self):
         if not self.coordinates or not self.image or self.az0_x is None:
@@ -102,9 +105,8 @@ class HorizonMarkerApp:
             return
         
         with open(hrz_path, 'w') as file:
-            file.write("Az Alt\n")
             for azimuth, elevation in horizon_coordinates:
-                file.write(f"{azimuth:.2f} {elevation:.2f}\n")
+                file.write(f"{azimuth} {elevation:.1f}\n")
         
         print(f"Horizon file saved to {hrz_path}")
 

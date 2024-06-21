@@ -32,7 +32,14 @@ class HorizonMarkerApp:
         self.root.bind("<Configure>", self.resize_image)
 
     def open_image(self):
-        self.image_path = filedialog.askopenfilename()
+        file_types = [
+            ("Image files", "*.jpg *.jpeg *.png *.gif *.bmp"),
+            ("JPEG files", "*.jpg *.jpeg"),
+            ("PNG files", "*.png"),
+            ("GIF files", "*.gif"),
+            ("All files", "*.*")
+        ]
+        self.image_path = filedialog.askopenfilename(filetypes=file_types)
         if not self.image_path:
             return
         self.image = Image.open(self.image_path)

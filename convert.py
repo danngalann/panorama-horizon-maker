@@ -17,6 +17,9 @@ class HorizonMarkerApp:
         self.coordinates = []
         self.az0_x = None
 
+        self.resized_width = None
+        self.resized_height = None
+
         self.menu = tk.Menu(root)
         self.root.config(menu=self.menu)
         
@@ -47,13 +50,19 @@ class HorizonMarkerApp:
 
     def display_image(self):
         if self.image:
+            canvas_width = self.canvas.winfo_width()
+            canvas_height = self.canvas.winfo_height()
             width, height = self.image.size
-            ratio = min(self.canvas.winfo_width() / width, self.canvas.winfo_height() / height)
-            new_size = (int(width * ratio), int(height * ratio))
-            resized_image = self.image.resize(new_size, Image.Resampling.LANCZOS)
+            scale_w = canvas_width / width
+            scale_h = canvas_height / height
+            scale = min(scale_w, scale_h)
+            new_size = (int(width * scale), int(height * scale))
+            self.resized_width, self.resized_height = new_size
+            resized_image = self.image.resize(new_size, Image.Resampling.LANCZOS)            
             self.image_tk = ImageTk.PhotoImage(resized_image)
-            self.canvas.create_image(0, 0, anchor=tk.NW, image=self.image_tk)
+            self.canvas.create_image((canvas_width - new_size[0]) // 2, (canvas_height - new_size[1]) // 2, anchor=tk.NW, image=self.image_tk)
             self.canvas.config(scrollregion=self.canvas.bbox(tk.ALL))
+
 
     def resize_image(self, event):
         self.display_image()
@@ -74,7 +83,7 @@ class HorizonMarkerApp:
             self.canvas.create_text(self.az0_x + 10, 10, text="Az=0", fill='green')
 
     def calculate_azimuth(self, x):
-        width = self.image.width
+        width = self.resized_width
         # Calculate azimuth: Determine the angular displacement of a point from the designated zero point (az0_x) relative to the image width.
         # The modulus operation ensures proper wrapping at the image boundaries to maintain a continuous 360-degree range. The result is scaled to degrees.
         azimuth = ((x - self.az0_x) % width) / width * 360  # Convert pixel offset to degrees, accounting for circular image wrap-around.
@@ -85,16 +94,15 @@ class HorizonMarkerApp:
         if not self.coordinates or not self.image or self.az0_x is None:
             return
         
-        width, height = self.image.size
+        height = self.resized_height
         vertical_fov = 180
-        half_fov = vertical_fov / 2
 
         # Split the coordinates into two lists based on whether they are left or right of the meridian
         horizon_coordinates_left_of_meridian = []
         horizon_coordinates_right_of_meridian = []
         for x, y in self.coordinates:
             azimuth = self.calculate_azimuth(x)
-            elevation = (height / 2 - y) / (height / 2) * half_fov
+            elevation = ((height / 2 - y) / (height / 2) * (vertical_fov / 2))
             
             if x < self.az0_x:
                 horizon_coordinates_left_of_meridian.append((azimuth, elevation))
@@ -110,9 +118,9 @@ class HorizonMarkerApp:
             if i == 0 or azimuth != horizon_coordinates[i-1][0]:
                 deduplicated_horizon_coordinates.append((azimuth, elevation))
 
-        # Ensure that the first azimuth is 0
+        # Ensure that the first azimuth is 0 by changing the first azimuth to 0
         if deduplicated_horizon_coordinates[0][0] != 0:
-            deduplicated_horizon_coordinates.append((0, deduplicated_horizon_coordinates[0][1]))
+            deduplicated_horizon_coordinates[0] = (0, deduplicated_horizon_coordinates[0][1])
 
         hrz_path = filedialog.asksaveasfilename(defaultextension=".hrz", filetypes=[("HRZ files", "*.hrz")])
         if not hrz_path:

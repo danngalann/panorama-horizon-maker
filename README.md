@@ -5,7 +5,7 @@ This script allows you to generate HRZ horizon files for NINA, Stellarium and ot
 
 ## How to use
 1. Open your image with the File menu. The image must be an equirectangular panorama.
-2. Mark Az 0 by right-clicking any part of the image. A vertical line will appear. All azimith coordinates will be calculated relative to this line.
+2. Mark Az 0 by right-clicking any part of the image. A vertical line will appear. All azimuth coordinates will be calculated relative to this line.
 3. From left to  right, left-click on the image to generate points following the horizon. Each point will be an Az/Alt coordinate.
 4. Using the File menu, save your HRZ file.
 

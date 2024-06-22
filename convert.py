@@ -50,65 +50,80 @@ class HorizonMarkerApp:
             width, height = self.image.size
             ratio = min(self.canvas.winfo_width() / width, self.canvas.winfo_height() / height)
             new_size = (int(width * ratio), int(height * ratio))
-            # Using the updated resampling method
             resized_image = self.image.resize(new_size, Image.Resampling.LANCZOS)
             self.image_tk = ImageTk.PhotoImage(resized_image)
             self.canvas.create_image(0, 0, anchor=tk.NW, image=self.image_tk)
             self.canvas.config(scrollregion=self.canvas.bbox(tk.ALL))
-
 
     def resize_image(self, event):
         self.display_image()
 
     def add_point(self, event):
         x, y = event.x, event.y
-        if self.coordinates:
-            last_x, last_y = self.coordinates[-1]
-            self.canvas.create_line(last_x, last_y, x, y, fill='red')
         self.coordinates.append((x, y))
+        if len(self.coordinates) > 1:
+            last_x, last_y = self.coordinates[-2]
+            self.canvas.create_line(last_x, last_y, x, y, fill='red')
         self.canvas.create_oval(x-3, y-3, x+3, y+3, fill='red')
-        
+
+    # Store the x-coordinate of the azimuth origin and draw a vertical line at that x-coordinate with a label
     def set_az0(self, event):
         self.az0_x = event.x
         if self.image:
-            self.canvas.create_line(self.az0_x, 0, self.az0_x, self.image.height, fill='blue', dash=(4, 2))
+            self.canvas.create_line(self.az0_x, 0, self.az0_x, self.canvas.winfo_height(), fill='green', dash=(4, 2))
+            self.canvas.create_text(self.az0_x + 10, 10, text="Az=0", fill='green')
 
-    def calculate_azimuth(self, x) -> int:
+    def calculate_azimuth(self, x):
         width = self.image.width
-        if x >= self.az0_x:
-            azimuth = (x - self.az0_x) / width * 360
-        else:
-            azimuth = 360 - ((self.az0_x - x) / width * 360)
+        # Calculate azimuth: Determine the angular displacement of a point from the designated zero point (az0_x) relative to the image width.
+        # The modulus operation ensures proper wrapping at the image boundaries to maintain a continuous 360-degree range. The result is scaled to degrees.
+        azimuth = ((x - self.az0_x) % width) / width * 360  # Convert pixel offset to degrees, accounting for circular image wrap-around.
 
-        # Round to the nearest integer
         return round(azimuth)
-        
+
     def save_hrz(self):
         if not self.coordinates or not self.image or self.az0_x is None:
             return
         
         width, height = self.image.size
-        horizon_coordinates = []
-        
+        vertical_fov = 180
+        half_fov = vertical_fov / 2
+
+        # Split the coordinates into two lists based on whether they are left or right of the meridian
+        horizon_coordinates_left_of_meridian = []
+        horizon_coordinates_right_of_meridian = []
         for x, y in self.coordinates:
             azimuth = self.calculate_azimuth(x)
-            elevation = 90 - (y / height) * 180
-            horizon_coordinates.append((azimuth, elevation))
+            elevation = (height / 2 - y) / (height / 2) * half_fov
+            
+            if x < self.az0_x:
+                horizon_coordinates_left_of_meridian.append((azimuth, elevation))
+            else:
+                horizon_coordinates_right_of_meridian.append((azimuth, elevation))
         
-        horizon_coordinates = sorted(horizon_coordinates, key=lambda coord: coord[0])
-        if horizon_coordinates[0][0] != 0:
-            first_elevation = horizon_coordinates[0][1]
-            horizon_coordinates = [(0, first_elevation)] + horizon_coordinates
+        # Merge the two lists
+        horizon_coordinates = horizon_coordinates_right_of_meridian + horizon_coordinates_left_of_meridian
+
+        # Deduplicate consecutive azimuths
+        deduplicated_horizon_coordinates = []
+        for i, (azimuth, elevation) in enumerate(horizon_coordinates):
+            if i == 0 or azimuth != horizon_coordinates[i-1][0]:
+                deduplicated_horizon_coordinates.append((azimuth, elevation))
+
+        # Ensure that the first azimuth is 0
+        if deduplicated_horizon_coordinates[0][0] != 0:
+            deduplicated_horizon_coordinates.append((0, deduplicated_horizon_coordinates[0][1]))
 
         hrz_path = filedialog.asksaveasfilename(defaultextension=".hrz", filetypes=[("HRZ files", "*.hrz")])
         if not hrz_path:
             return
         
         with open(hrz_path, 'w') as file:
-            for azimuth, elevation in horizon_coordinates:
+            for azimuth, elevation in deduplicated_horizon_coordinates:
                 file.write(f"{azimuth} {elevation:.1f}\n")
-        
+    
         print(f"Horizon file saved to {hrz_path}")
+
 
 if __name__ == "__main__":
     root = tk.Tk()
